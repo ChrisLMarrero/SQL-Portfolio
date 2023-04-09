@@ -1,0 +1,51 @@
+
+/* 
+Data Source: AdventureWorks2019
+Purpose: Code to create a table for every employee in the data source with their Details and (Salary, PTO, and Sick Leave) 
+utilization and comparison to other employees.
+*/
+
+
+
+SELECT  DISTINCT A.BusinessEntityID, CONCAT(Name_.LastName,', ',Name_.FirstName) as EName
+		,A.JobTitle, A.BirthDate
+		, AD.AddressLine1
+		,AD.State_
+		,A.MaritalStatus, A.Gender, A.HireDate
+		,b.Name
+		, DATEDIFF(year,A.BirthDate,GETDATE()) as Age
+		,P.Rate
+		,FORMAT(Rate * 40 * 52,'N') yearlySalary
+		,A.VacationHours	
+		,(SELECT SUM(VacationHours) FROM [HumanResources].[Employee] ) as Sum_VacHr
+		,ROUND(A.SickLeaveHours/CAST((SELECT SUM(VacationHours) FROM [HumanResources].[Employee]) AS FLOAT ),4)*100 AS Vac_Total
+		,AVG(A.VacationHours) OVER () AS AVG_Vaca
+		, A.VacationHours - (AVG(A.VacationHours) OVER ()) AS Over_Vacation
+		,A.SickLeaveHours
+		,(SELECT SUM(SickLeaveHours) FROM [HumanResources].[Employee] ) as Sum_SickHr
+		,ROUND(A.SickLeaveHours/CAST((SELECT SUM(SickLeaveHours) FROM [HumanResources].[Employee]) AS FLOAT ),4)*100 AS Sick_Total
+		,AVG(A.SickLeaveHours) OVER () AS AVG_Sick
+		, A.SickLeaveHours - (AVG(A.SickLeaveHours) OVER ()) as Over_Sick
+
+
+FROM [HumanResources].[Employee] A
+
+			LEFT JOIN [AdventureWorks2019].[Person].[Person] as Name_
+			ON A.BusinessEntityID = Name_.BusinessEntityID
+
+			 OUTER APPLY ( SELECT TOP 1 hh.BusinessEntityID, DD.Name FROM [HumanResources].[EmployeeDepartmentHistory] hh
+							LEFT JOIN [HumanResources].[Department] DD ON hh.DepartmentID = dd.DepartmentID
+							WHERE A.BusinessEntityID = hh.BusinessEntityID
+							ORDER BY BusinessEntityID,EndDate ASC) b
+
+			 OUTER APPLY ( SELECT TOP 1 Rate FROM [HumanResources].[EmployeePayHistory]
+							WHERE A.BusinessEntityID = BusinessEntityID
+							ORDER BY BusinessEntityID, ModifiedDate ASC) P
+
+			 OUTER APPLY (SELECT TOP 1 OA.AddressLine1, ST.Name as State_ FROM [AdventureWorks2019].[Person].[BusinessEntityAddress] OB
+							LEFT JOIN [AdventureWorks2019].[Person].[Address] OA ON OB.AddressID = OA.AddressID
+							LEFT JOIN [Person].[StateProvince] ST ON OA.StateProvinceID = ST.StateProvinceID
+							WHERE A.BusinessEntityID = OB.BusinessEntityID
+							ORDER BY OB.ModifiedDate ASC) AD
+
+							ORDER BY BusinessEntityID
